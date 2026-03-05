@@ -1,5 +1,6 @@
 package org.example.expert.config;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.extern.slf4j.Slf4j;
 import org.aspectj.lang.ProceedingJoinPoint;
@@ -10,10 +11,16 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.context.request.RequestContextHolder;
 import org.springframework.web.context.request.ServletRequestAttributes;
 
+import java.util.HashMap;
+import java.util.LinkedHashMap;
+import java.util.Map;
+
 @Aspect
 @Component
 @Slf4j
 public class Logger {
+
+    private final ObjectMapper mapper = new ObjectMapper();
 
     @Around("@annotation(org.example.expert.config.AdminLogging)")
     public Object executionLogger(ProceedingJoinPoint joinPoint) throws Throwable {
@@ -25,7 +32,10 @@ public class Logger {
         String[] parameterNames = signature.getParameterNames();
         Object[] args = joinPoint.getArgs();
 
-        String paramsString = buildParamsString(parameterNames, args);
+        Map<String, Object> paramsMap = new LinkedHashMap<>();
+        for (int i = 0; i < parameterNames.length; i++) {
+            paramsMap.put(parameterNames[i], args[i]);
+        }
 
         HttpServletRequest request = ((ServletRequestAttributes)
                 RequestContextHolder.getRequestAttributes()).getRequest();
@@ -33,29 +43,22 @@ public class Logger {
         Long userId = (Long) request.getAttribute("userId");
         String url = request.getRequestURI();
 
-        log.info("[API 요청] userId = {}, url = {}, {}.{} | 파라미터: [{}]",
-                userId, url, className, methodName, paramsString);
+        String paramsJson = mapper.writeValueAsString(paramsMap);
+
+        log.info("[API 요청] userId = {}, url = {}, {}.{} | 요청: [{}]",
+                userId, url, className, methodName, paramsJson);
 
         long start = System.currentTimeMillis();
 
         Object proceed = joinPoint.proceed();
 
+        String responseJson = mapper.writeValueAsString(proceed);
+
         long end = System.currentTimeMillis();
 
-        log.info("[API 응답] userId = {}, {}.{} (수행시간: {}ms)",
-                userId, className, methodName, (end - start));
+        log.info("[API 응답] userId = {}, {}.{} | 응답: {} (수행시간: {}ms)",
+                userId, className, methodName, responseJson, (end - start));
 
         return proceed;
-    }
-
-    private String buildParamsString(String[] parameterNames, Object[] args) {
-        StringBuilder sb = new StringBuilder();
-        for (int i = 0; i < parameterNames.length; i++) {
-            if (i > 0) {
-                sb.append(",");
-            }
-            sb.append(parameterNames[i]).append("=").append(args[i]);
-        }
-        return sb.toString();
     }
 }
