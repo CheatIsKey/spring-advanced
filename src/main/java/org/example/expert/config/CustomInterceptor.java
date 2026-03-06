@@ -28,9 +28,17 @@ public class CustomInterceptor implements HandlerInterceptor {
 
         // 현재 로그인한 사용자 이름을 꺼낸다.
         Long userId = (Long) request.getAttribute("userId");
+
+        String userRole = (String) request.getAttribute("userRole");
+        if (userRole == null) {
+            response.sendError(HttpServletResponse.SC_FORBIDDEN, "접근 권한이 없습니다.");
+            return false;
+        }
+
         UserRole role = UserRole.of((String) request.getAttribute("userRole"));
 
-        if (role == null || !UserRole.ADMIN.equals(role)) {
+
+        if (!UserRole.ADMIN.equals(role)) {
             response.sendError(HttpServletResponse.SC_FORBIDDEN, "접근 권한이 없습니다.");
             return false;
         }
